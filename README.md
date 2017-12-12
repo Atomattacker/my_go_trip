@@ -1,3 +1,3 @@
 # my_go_trip
-my go trip
-[]check
+my go trip  
+[x]check
