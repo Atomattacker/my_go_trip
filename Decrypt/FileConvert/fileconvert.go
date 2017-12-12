@@ -2,11 +2,12 @@ package main
 
 import(
 	"fmt"
-	"io/ioutil"
 	"net/rpc"
 	"os/exec"
 	"os"
 	"bufio"
+	"io/ioutil"
+	"path/filepath"
 )
 
 type Args struct{
@@ -18,23 +19,72 @@ type Reply struct{
 }
 
 const (
+	ext = ".mybak"
+	tmpext =".mybak.txt"
 	pathfile = "temppaths"
 	routinecount = 10
 )
 
-var client *rpc.Client
+var currentDir string
 
+var client *rpc.Client
 func main() {
 
-	if startprocess() && dialHTTP() && parsefile() {
-		
+	currentDir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+
+	if startProcess() && dialHTTP() {
+		if f, err :=openPathfile(); err == nil{
+			defer f.Close()
+			scanner := bufio.NewScanner(f)
+			ch := make(chan struct{})
+			i :=0
+			for index := 0; index < routinecount; index++ {				
+				if scanner.Scan(){
+					i++
+					t := scanner.Text()
+					go func(){
+						convertAndRename(t)
+						ch<-struct{}{}
+					} ()
+				} else {
+					break
+				}
+			}
+
+			for {
+				<-ch
+				if scanner.Scan(){
+					t :=scanner.Text()
+					go func(){
+						convertAndRename(t)
+						ch<-struct{}{}
+					} ()
+				} else {
+					i--
+					break
+				}				
+			}
+
+			for i>0{
+				<-ch
+				i--
+			}
+			
+		}else{
+			fmt.Println(err)
+		}
+		cmd.Process.Kill()
 	}
-	
 }
 
-func startprocess()bool{
-	rename := exec.Command("raname")	
-	err := rename.Start()
+var cmd *exec.Cmd
+
+func startProcess()bool{	
+	filePath := filepath.Join(currentDir,"rename.exe")
+	cmd = exec.Command(filePath)	
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	err := cmd.Start()
 	if err != nil{
 		fmt.Println(err)
 		return false
@@ -44,7 +94,7 @@ func startprocess()bool{
 
 func dialHTTP() bool{
 	var err error
-	client, err = rpc.DialHTTP("tcp","localhost:12345")
+	client, err = rpc.DialHTTP("tcp","localhost:12306")
 	if err != nil{
 		fmt.Println(err)
 		return false
@@ -52,18 +102,38 @@ func dialHTTP() bool{
 	return true
 }
 
-func parsefile() bool{
-	if _, err := os.Stat(pathfile); os.IsNotExist(err){
-		fmt.Println("路径文件不存在")
-		return false
+func openPathfile() (f *os.File,err error){
+	if _, err = os.Stat(filepath.Join(currentDir,pathfile)); os.IsNotExist(err){
+		return
 	}
-	f,err := os.Open(pathfile)
+	
+	f,err = os.Open(filepath.Join(currentDir,pathfile))
+	return 
+}
+
+func convertAndRename(path string){
+	tmpPath := path + tmpext
+	if !rename(path,tmpPath) {
+		return
+	}
+	content, err := ioutil.ReadFile(tmpPath)
 	if err != nil{
 		fmt.Println(err)
-		return false
+		return
 	}
-	defer f.Close()
-	scanner := bufio.NewReader(f)
+	oldPath := path+ext
+	f, ce := os.Create(oldPath)
+	if ce !=nil{
+		fmt.Println(ce)	
+		return
+	}	
+	if _, we := f.Write(content);we != nil{
+		fmt.Println(we)	
+		return
+	}	
+	f.Close()
+	os.Remove(tmpPath)
+	rename(oldPath,path)
 }
 
 func rename(oldpath,newpath string)bool{
@@ -76,6 +146,7 @@ func rename(oldpath,newpath string)bool{
 	}
 	if reply.Err != nil{
 		fmt.Println(err)
+		return false
 	}
 	return true
 }

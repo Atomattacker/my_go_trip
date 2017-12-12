@@ -2,7 +2,7 @@ package main
 
 import(	
 	"fmt"	
-	"os"
+    "os"
 	"net/rpc"
 	"net/http"
 )
@@ -25,10 +25,9 @@ func (ar *Arith) Rename(arg *Args, reply *Reply) error{
 
 func main() {
 	arith := new(Arith)
-	server := rpc.NewServer()
-	server.Register(arith)
+	rpc.Register(arith)
 	rpc.HandleHTTP()
-	err := http.ListenAndServe("localhost:12345",nil)
+	err := http.ListenAndServe("localhost:12306",nil)
 	if err !=nil{
 		fmt.Println(err.Error())
 	}
