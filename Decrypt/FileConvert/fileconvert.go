@@ -8,6 +8,7 @@ import(
 	"bufio"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 )
 
 type Args struct{
@@ -29,7 +30,12 @@ var currentDir string
 
 var client *rpc.Client
 func main() {
-
+	var routinecount = routinecount
+	if len(os.Args) >= 2 {
+		 if i,err := strconv.Atoi(os.Args[1]); err ==nil{
+			routinecount = i
+		 }
+	}
 	currentDir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 
 	if startProcess() && dialHTTP() {
@@ -52,8 +58,8 @@ func main() {
 			}
 
 			for {
-				<-ch
-				if scanner.Scan(){
+				if scanner.Scan(){					
+					<-ch
 					t :=scanner.Text()
 					go func(){
 						convertAndRename(t)
@@ -65,7 +71,7 @@ func main() {
 				}				
 			}
 
-			for i>0{
+			for i>=0{
 				<-ch
 				i--
 			}
@@ -134,6 +140,7 @@ func convertAndRename(path string){
 	f.Close()
 	os.Remove(tmpPath)
 	rename(oldPath,path)
+	fmt.Println(path)
 }
 
 func rename(oldpath,newpath string)bool{
